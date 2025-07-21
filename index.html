@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>羽毛球预约管理系统</title>
+    <!-- 引入外部资源 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vuex@4/dist/vuex.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        danger: '#EF4444',
+                        warning: '#F59E0B',
+                        dark: '#1F2937',
+                        light: '#F3F4F6'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            }
+        }
+    </script>
+
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+
+            .card-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+
+            .transition-custom {
+                transition: all 0.3s ease;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="app" class="flex flex-col min-h-screen">
+        <!-- 导航栏 -->
+        <nav v-if="isLoggedIn" class="bg-primary text-white shadow-md">
+            <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fa fa-table-tennis text-2xl" aria-hidden="true"></i>
+                    <h1 class="text-xl font-bold">羽毛球预约管理系统</h1>
+                </div>
+
+                <div class="flex items-center space-x-6">
+                    <span class="hidden md:inline-block">欢迎, {{ currentUser.username }}</span>
+                    <button @click="logout" class="flex items-center space-x-1 hover:text-gray-200 transition-custom">
+                        <i class="fa fa-sign-out" aria-hidden="true"></i>
+                        <span>退出</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容区 -->
+        <main class="flex-grow container mx-auto px-4 py-8">
+            <!-- 登录页面 -->
+            <div v-if="!isLoggedIn" class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                <div class="text-center mb-6">
+                    <i class="fa fa-table-tennis text-5xl text-primary mb-4" aria-hidden="true"></i>
+                    <h2 class="text-2xl font-bold text-gray-800">登录系统</h2>
+                </div>
+
+                <form @submit.prevent="login" class="space-y-4">
+                    <div>
+                        <label for="username" class="block text-gray-700 mb-1">用户名</label>
+                        <input type="text"
+                               id="username"
+                               v-model="loginForm.username"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                               required>
+                    </div>
+
+                    <div>
+                        <label for="password" class="block text-gray-700 mb-1">密码</label>
+                        <input type="password"
+                               id="password"
+                               v-model="loginForm.password"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                               required>
+                    </div>
+
+                    <button type="submit"
+                            class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2 px-4 rounded-md transition-custom flex items-center justify-center space-x-2">
+                        <i class="fa fa-sign-in" aria-hidden="true"></i>
+                        <span>登录</span>
+                    </button>
+                </form>
+
+                <div v-if="loginError" class="mt-4 text-danger text-center">
+                    <i class="fa fa-exclamation-circle" aria-hidden="true"></i>
+                    <span>用户名或密码错误</span>
+                </div>
+            </div>
+
+            <!-- 管理员页面 -->
+            <div v-if="isLoggedIn && currentUser.role === 'admin'">
+                <div class="mb-6 flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">场地管理</h2>
+                    <button @click="showAddCourtModal = true"
+                            class="bg-secondary hover:bg-secondary/90 text-white font-bold py-2 px-4 rounded-md transition-custom flex items-center space-x-2">
+                        <i class="fa fa-plus" aria-hidden="true"></i>
+                        <span>新增场地</span>
+                    </button>
+                </div>
+
+                <!-- 场地列表 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div v-for="court in courts" :key="court.id" class="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-custom">
+                        <div class="relative h-48">
+                            <img :src="court.imageUrl" alt="场地图片" class="w-full h-full object-cover">
+                            <button @click="deleteCourt(court.id)"
+                                    class="absolute top-2 right-2 bg-danger hover:bg-danger/90 text-white rounded-full p-2 transition-custom">
+                                <i class="fa fa-trash" aria-hidden="true"></i>
+                            </button>
+                            <button @click="editCourt(court)"
+                                    class="absolute top-2 right-10 bg-primary hover:bg-primary/90 text-white rounded-full p-2 transition-custom">
+                                <i class="fa fa-pencil" aria-hidden="true"></i>
+                            </button>
+                        </div>
+
+                        <div class="p-4">
+                            <h3 class="text-xl font-bold text-gray-800 mb-2">{{ court.name }}</h3>
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-primary font-bold">¥{{ court.price }}/小时</span>
+                                <span class="text-gray-600">{{ court.size }}㎡</span>
+                            </div>
+
+                            <div class="mb-3">
+                                <h4 class="font-semibold text-gray-700 mb-1">备注:</h4>
+                                <p class="text-gray-600 text-sm">{{ court.notes || '无' }}</p>
+                            </div>
+
+                            <div>
+                                <h4 class="font-semibold text-gray-700 mb-2">预约状态:</h4>
+                                <div class="grid grid-cols-3 gap-1">
+                                    <div v-for="(status, time) in court.timeSlots" :key="time"
+                                         :class="status === 'available' ? 'bg-secondary/20 text-secondary' : 'bg-danger/20 text-danger'"
+                                         class="text-center text-xs py-1 rounded">
+                                        {{ time }}: {{ status === 'available' ? '空闲' : '已预约' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 用户页面 -->
+            <div v-if="isLoggedIn && currentUser.role === 'user'">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">场地预约</h2>
+
+                <!-- 场地列表 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div v-for="court in courts" :key="court.id" class="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-custom">
+                        <div class="h-48">
+                            <img :src="court.imageUrl" alt="场地图片" class="w-full h-full object-cover">
+                        </div>
+
+                        <div class="p-4">
+                            <h3 class="text-xl font-bold text-gray-800 mb-2">{{ court.name }}</h3>
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-primary font-bold">¥{{ court.price }}/小时</span>
+                                <span class="text-gray-600">{{ court.size }}㎡</span>
+                            </div>
+
+                            <div class="mb-3">
+                                <h4 class="font-semibold text-gray-700 mb-1">备注:</h4>
+                                <p class="text-gray-600 text-sm">{{ court.notes || '无' }}</p>
+                            </div>
+
+                            <div>
+                                <h4 class="font-semibold text-gray-700 mb-2">可预约时段:</h4>
+                                <div class="grid grid-cols-3 gap-1">
+                                    <button v-for="(status, time) in court.timeSlots"
+                                            :key="time"
+                                            :class="status === 'available' ? 'bg-secondary hover:bg-secondary/80 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'"
+                                            class="text-center text-xs py-1 rounded transition-custom"
+                                            :disabled="status !== 'available'"
+                                            @click="showReservationModal(court, time)">
+                                        {{ time }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 页脚 -->
+        <footer v-if="isLoggedIn" class="bg-dark text-white py-4">
+            <div class="container mx-auto px-4 text-center text-sm">
+                <p>© 2023 羽毛球预约管理系统 - 版权所有</p>
+            </div>
+        </footer>
+
+        <!-- 新增/编辑场地模态框 -->
+        <div v-if="showAddCourtModal || showEditCourtModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">{{ showAddCourtModal ? '新增场地' : '编辑场地' }}</h3>
+
+                <form @submit.prevent="saveCourt" class="space-y-4">
+                    <div>
+                        <label for="courtName" class="block text-gray-700 mb-1">场地名称</label>
+                        <input type="text"
+                               id="courtName"
+                               v-model="currentCourt.name"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                               required>
+                    </div>
+
+                    <div>
+                        <label for="courtPrice" class="block text-gray-700 mb-1">每小时价格 (元)</label>
+                        <input type="number"
+                               id="courtPrice"
+                               v-model="currentCourt.price"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                               min="0"
+                               required>
+                    </div>
+
+                    <div>
+                        <label for="courtSize" class="block text-gray-700 mb-1">场地大小 (㎡)</label>
+                        <input type="number"
+                               id="courtSize"
+                               v-model="currentCourt.size"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                               min="0"
+                               required>
+                    </div>
+
+                    <div>
+                        <label for="courtImage" class="block text-gray-700 mb-1">图片URL</label>
+                        <input type="text"
+                               id="courtImage"
+                               v-model="currentCourt.imageUrl"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                               required
+                               placeholder="输入图片的URL地址">
+                    </div>
+
+                    <div>
+                        <label for="courtNotes" class="block text-gray-700 mb-1">备注</label>
+                        <textarea id="courtNotes"
+                                  v-model="currentCourt.notes"
+                                  class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                  rows="3"
+                                  placeholder="输入场地备注信息"></textarea>
+                    </div>
+
+                    <div class="flex space-x-3">
+                        <button type="button"
+                                @click="cancelCourtForm"
+                                class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md transition-custom">
+                            取消
+                        </button>
+                        <button type="submit"
+                                class="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-2 px-4 rounded-md transition-custom">
+                            {{ showAddCourtModal ? '新增' : '保存' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 预约确认模态框 -->
+        <div v-if="showReservationConfirmModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">确认预约</h3>
+
+                <div class="mb-4">
+                    <p class="text-gray-700 mb-2">您正在预约以下场地：</p>
+                    <p class="font-semibold">{{ selectedCourt.name }}</p>
+                    <p class="text-gray-600">时段：{{ selectedTimeSlot }}</p>
+                    <p class="text-gray-600">价格：¥{{ selectedCourt.price }}/小时</p>
+                </div>
+
+                <div class="flex space-x-3">
+                    <button type="button"
+                            @click="showReservationConfirmModal = false"
+                            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md transition-custom">
+                        取消
+                    </button>
+                    <button type="button"
+                            @click="confirmReservation"
+                            class="flex-1 bg-secondary hover:bg-secondary/90 text-white font-bold py-2 px-4 rounded-md transition-custom">
+                        确认预约
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 预约成功提示 -->
+        <div v-if="showReservationSuccess" class="fixed bottom-4 right-4 bg-secondary text-white p-4 rounded-lg shadow-lg z-50 animate-fade-in">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-check-circle text-xl" aria-hidden="true"></i>
+                <span>预约成功！</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 定义时间段
+        const timeSlots = {
+            '08:00': 'available',
+            '10:00': 'available',
+            '12:00': 'available',
+            '14:00': 'available',
+            '16:00': 'available',
+            '18:00': 'available',
+            '20:00': 'available'
+        };
+
+        // 创建Vuex存储
+        const store = Vuex.createStore({
+            state() {
+                return {
+                    // 模拟用户数据
+                    users: [
+                        { id: 1, username: 'admin', password: '123456', role: 'admin' },
+                        { id: 2, username: 'user', password: '123456', role: 'user' }
+                    ],
+                    // 当前登录用户
+                    currentUser: null,
+                    // 场地数据
+                    courts: [
+                        {
+                            id: 1,
+                            name: '1号场地',
+                            price: 50,
+                            size: 42,
+                            imageUrl: 'https://picsum.photos/id/1058/600/400',
+                            notes: '标准羽毛球场，配备专业灯光',
+                            timeSlots: { ...timeSlots }
+                        },
+                        {
+                            id: 2,
+                            name: '2号场地',
+                            price: 60,
+                            size: 42,
+                            imageUrl: 'https://picsum.photos/id/1059/600/400',
+                            notes: 'VIP场地，木质地板',
+                            timeSlots: { ...timeSlots, '18:00': 'reserved' }
+                        }
+                    ]
+                };
+            },
+            mutations: {
+                // 登录
+                login(state, user) {
+                    state.currentUser = user;
+                },
+                // 登出
+                logout(state) {
+                    state.currentUser = null;
+                },
+                // 添加场地
+                addCourt(state, court) {
+                    court.id = Date.now(); // 使用时间戳作为唯一ID
+                    court.timeSlots = { ...timeSlots }; // 初始化时间段为空闲
+                    state.courts.push(court);
+                },
+                // 更新场地
+                updateCourt(state, updatedCourt) {
+                    const index = state.courts.findIndex(court => court.id === updatedCourt.id);
+                    if (index !== -1) {
+                        state.courts[index] = { ...state.courts[index], ...updatedCourt };
+                    }
+                },
+                // 删除场地
+                deleteCourt(state, courtId) {
+                    state.courts = state.courts.filter(court => court.id !== courtId);
+                },
+                // 预约场地
+                reserveCourt(state, { courtId, timeSlot }) {
+                    const court = state.courts.find(c => c.id === courtId);
+                    if (court) {
+                        court.timeSlots[timeSlot] = 'reserved';
+                    }
+                }
+            },
+            actions: {
+                // 登录操作
+                login({ commit }, { username, password }) {
+                    const user = this.state.users.find(u => u.username === username && u.password === password);
+                    if (user) {
+                        commit('login', user);
+                        return true;
+                    }
+                    return false;
+                },
+                // 登出操作
+                logout({ commit }) {
+                    commit('logout');
+                },
+                // 添加场地
+                addCourt({ commit }, court) {
+                    commit('addCourt', court);
+                },
+                // 更新场地
+                updateCourt({ commit }, court) {
+                    commit('updateCourt', court);
+                },
+                // 删除场地
+                deleteCourt({ commit }, courtId) {
+                    commit('deleteCourt', courtId);
+                },
+                // 预约场地
+                reserveCourt({ commit }, data) {
+                    commit('reserveCourt', data);
+                }
+            },
+            getters: {
+                // 获取当前登录用户
+                currentUser(state) {
+                    return state.currentUser;
+                },
+                // 检查是否登录
+                isLoggedIn(state) {
+                    return !!state.currentUser;
+                },
+                // 获取所有场地
+                allCourts(state) {
+                    return state.courts;
+                },
+                // 获取空闲场地（仅用户视角）
+                availableCourts(state) {
+                    return state.courts.filter(court => {
+                        // 检查是否有至少一个空闲时段
+                        return Object.values(court.timeSlots).some(status => status === 'available');
+                    });
+                }
+            }
+        });
+
+        // 创建Vue应用
+        const { createApp } = Vue;
+        createApp({
+            store,
+            data() {
+                return {
+                    // 登录表单
+                    loginForm: {
+                        username: '',
+                        password: ''
+                    },
+                    loginError: false,
+
+                    // 场地表单
+                    currentCourt: {
+                        id: null,
+                        name: '',
+                        price: 0,
+                        size: 0,
+                        imageUrl: '',
+                        notes: ''
+                    },
+                    showAddCourtModal: false,
+                    showEditCourtModal: false,
+
+                    // 预约相关
+                    showReservationConfirmModal: false,
+                    selectedCourt: null,
+                    selectedTimeSlot: '',
+                    showReservationSuccess: false
+                };
+            },
+            computed: {
+                isLoggedIn() {
+                    return this.$store.getters.isLoggedIn;
+                },
+                currentUser() {
+                    return this.$store.getters.currentUser;
+                },
+                courts() {
+                    // 管理员看到所有场地，用户只看到有空闲时段的场地
+                    return this.currentUser && this.currentUser.role === 'admin'
+                        ? this.$store.getters.allCourts
+                        : this.$store.getters.availableCourts;
+                }
+            },
+            methods: {
+                // 登录
+                async login() {
+                    this.loginError = false;
+                    const success = await this.$store.dispatch('login', this.loginForm);
+                    if (!success) {
+                        this.loginError = true;
+                    } else {
+                        // 重置表单
+                        this.loginForm = { username: '', password: '' };
+                    }
+                },
+
+                // 登出
+                logout() {
+                    this.$store.dispatch('logout');
+                },
+
+                // 显示添加场地模态框
+                showAddModal() {
+                    this.currentCourt = { id: null, name: '', price: 0, size: 0, imageUrl: '', notes: '' };
+                    this.showAddCourtModal = true;
+                },
+
+                // 编辑场地
+                editCourt(court) {
+                    this.currentCourt = { ...court };
+                    this.showEditCourtModal = true;
+                },
+
+                // 保存场地（新增或编辑）
+                saveCourt() {
+                    if (this.showAddCourtModal) {
+                        this.$store.dispatch('addCourt', this.currentCourt);
+                    } else {
+                        this.$store.dispatch('updateCourt', this.currentCourt);
+                    }
+                    this.cancelCourtForm();
+                },
+
+                // 取消场地表单
+                cancelCourtForm() {
+                    this.showAddCourtModal = false;
+                    this.showEditCourtModal = false;
+                    this.currentCourt = { id: null, name: '', price: 0, size: 0, imageUrl: '', notes: '' };
+                },
+
+                // 删除场地
+                deleteCourt(courtId) {
+                    if (confirm('确定要删除这个场地吗？')) {
+                        this.$store.dispatch('deleteCourt', courtId);
+                    }
+                },
+
+                // 显示预约确认模态框
+                showReservationModal(court, timeSlot) {
+                    this.selectedCourt = court;
+                    this.selectedTimeSlot = timeSlot;
+                    this.showReservationConfirmModal = true;
+                },
+
+                // 确认预约
+                confirmReservation() {
+                    this.$store.dispatch('reserveCourt', {
+                        courtId: this.selectedCourt.id,
+                        timeSlot: this.selectedTimeSlot
+                    });
+
+                    this.showReservationConfirmModal = false;
+                    this.showReservationSuccess = true;
+
+                    // 3秒后隐藏成功提示
+                    setTimeout(() => {
+                        this.showReservationSuccess = false;
+                    }, 3000);
+                }
+            }
+        })
+            .use(store)
+            .mount('#app');
+    </script>
+</body>
+</html>
